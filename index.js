@@ -29,6 +29,7 @@ async function run() {
     // create a collection
     const database = client.db('LearnNest');
     const usersCollection = database.collection('users');
+    const teacherRequestCollection = database.collection('teachOnLearnNest');
 
     // save user data in db and update last login time
     app.post('/user', async (req, res) => {
@@ -46,6 +47,9 @@ async function run() {
             { email },
             { $set: { last_loggedIn: new Date().toISOString() } }
           );
+          return res
+            .status(200)
+            .send({ message: 'User already exists', inserted: false });
         }
 
         const result = await usersCollection.insertOne(userData);
@@ -56,6 +60,33 @@ async function run() {
       }
     });
 
+    // save teacher request data in db
+    app.post('/teacher-request', async (req, res) => {
+      const teachOnData = req.body;
+      teachOnData.status = 'pending';
+      teachOnData.create_at = new Date().toISOString();
+      teachOnData.last_request_at = new Date().toISOString();
+
+      const email = teachOnData?.email;
+      const alreadyRequest = await teacherRequestCollection.findOne({ email });
+      if (!!alreadyRequest) {
+        await teacherRequestCollection.updateOne(
+          { email },
+          {
+            $set: {
+              status: 'pending',
+              last_request_at: new Date().toISOString(),
+            },
+          }
+        );
+        return res
+          .status(200)
+          .send({ message: 'User already exists', inserted: false });
+      }
+
+      const result = await teacherRequestCollection.insertOne(teachOnData);
+      res.send(result);
+    });
     // Send a ping to confirm a successful connection
     await client.db('admin').command({ ping: 1 });
     console.log(
