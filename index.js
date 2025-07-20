@@ -2,7 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const app = express();
 const cors = require('cors');
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 
 const port = process.env.PORT || 3000;
 
@@ -36,6 +36,7 @@ async function run() {
       try {
         const userData = req.body;
         userData.role = 'student';
+        userData.status = 'not-verified';
         userData.create_at = new Date().toISOString();
         userData.last_loggedIn = new Date().toISOString();
 
@@ -86,6 +87,40 @@ async function run() {
 
       const result = await teacherRequestCollection.insertOne(teachOnData);
       res.send(result);
+    });
+
+    // get all teacher request
+    app.get('/all-request', async (req, res) => {
+      const result = await teacherRequestCollection.find().toArray();
+      res.send(result);
+    });
+
+    // teacher request status update
+    app.patch('/teacher-request-status/:id', async (req, res) => {
+      const id = req.params.id;
+      const { status, role, email } = req.body;
+      // return console.log(id, status, role, email);
+
+      try {
+        await teacherRequestCollection.updateOne(
+          { _id: new ObjectId(id) },
+          {
+            $set: { status: status },
+          }
+        );
+
+        await usersCollection.updateOne(
+          { email },
+          {
+            $set: { role: role },
+          }
+        );
+
+        res.send({ message: 'Rider assigned' });
+      } catch (error) {
+        console.error(error);
+        res.status(500).send({ message: 'Failed to assign rider' });
+      }
     });
     // Send a ping to confirm a successful connection
     await client.db('admin').command({ ping: 1 });
