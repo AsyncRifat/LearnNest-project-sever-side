@@ -31,6 +31,33 @@ async function run() {
     const usersCollection = database.collection('users');
     const teacherRequestCollection = database.collection('teachOnLearnNest');
 
+    // user search (makeAdmin client)
+    app.get('/users/search', async (req, res) => {
+      const emailQuery = req.query.email;
+
+      // const filter = {
+      //   email: { $ne: req?.user?.email },
+      // };
+      const regex = new RegExp(emailQuery, 'i'); //case-insensitive partial match
+
+      try {
+        let users;
+        if (emailQuery) {
+          users = await usersCollection
+            .find({ email: { $regex: regex } })
+            .limit(10)
+            .toArray();
+        } else {
+          users = await usersCollection.find().toArray();
+        }
+
+        res.send(users);
+      } catch (error) {
+        console.error('Error searching users', error);
+        res.status(500).send({ message: 'Error searching users' });
+      }
+    });
+
     // save user data in db and update last login time
     app.post('/user', async (req, res) => {
       try {
@@ -58,6 +85,29 @@ async function run() {
       } catch (error) {
         console.log(error);
         res.status(500).json({ error: error.message });
+      }
+    });
+
+    // make admin
+    app.patch('/make-admin/:id', async (req, res) => {
+      const id = req.params.id;
+      const { role } = req.body;
+      console.log(id, role);
+
+      try {
+        const result = await usersCollection.updateOne(
+          { _id: new ObjectId(id) },
+          {
+            $set: {
+              role: role,
+              status: 'verified',
+            },
+          }
+        );
+        res.send(result);
+      } catch (error) {
+        console.error(error);
+        res.status(500).send({ message: 'Failed to update' });
       }
     });
 
@@ -99,7 +149,6 @@ async function run() {
     app.patch('/teacher-request-status/:id', async (req, res) => {
       const id = req.params.id;
       const { status, role, email } = req.body;
-      // return console.log(id, status, role, email);
 
       try {
         await teacherRequestCollection.updateOne(
@@ -119,7 +168,7 @@ async function run() {
         res.send({ message: 'Rider assigned' });
       } catch (error) {
         console.error(error);
-        res.status(500).send({ message: 'Failed to assign rider' });
+        res.status(500).send({ message: 'Failed to update' });
       }
     });
     // Send a ping to confirm a successful connection
