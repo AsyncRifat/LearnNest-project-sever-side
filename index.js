@@ -4,7 +4,20 @@ const app = express();
 const cors = require('cors');
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 
+const admin = require('firebase-admin');
+
 const port = process.env.PORT || 3000;
+
+// firebase access token
+// convert : base64 to utf8
+const decodedKey = Buffer.from(
+  process.env.FIREBASE_SERVICE_KEY,
+  'base64'
+).toString('utf8');
+const serviceAccount = JSON.parse(decodedKey);
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+});
 
 // middleware
 const corsOptions = {
@@ -31,13 +44,39 @@ async function run() {
     const usersCollection = database.collection('users');
     const teacherRequestCollection = database.collection('teachOnLearnNest');
 
+    // done: firebase JWT
+    const verifyFirebaseToken = async (req, res, next) => {
+      const authHeader = req.headers.authorization;
+
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).send({ message: 'Unauthorized access' });
+      }
+
+      const token = authHeader.split(' ')[1];
+      if (!token) {
+        return res.status(401).send({ message: 'Unauthorized access' });
+      }
+      try {
+        const decoded = await admin.auth().verifyIdToken(token);
+        console.log('yes decoded token', decoded);
+
+        req.decoded = decoded;
+
+        next();
+      } catch (error) {
+        console.log(error);
+        return res.status(401).send({ message: 'Unauthorized access' });
+      }
+    };
+
     // user search (makeAdmin client)
-    app.get('/users/search', async (req, res) => {
+    app.get('/users/search', verifyFirebaseToken, async (req, res) => {
       const emailQuery = req.query.email;
 
-      // const filter = {
-      //   email: { $ne: req?.user?.email },
-      // };
+      const filter = {
+        email: { $ne: req?.decoded?.email },
+      };
+
       const regex = new RegExp(emailQuery, 'i'); //case-insensitive partial match
 
       try {
@@ -48,7 +87,7 @@ async function run() {
             .limit(10)
             .toArray();
         } else {
-          users = await usersCollection.find().toArray();
+          users = await usersCollection.find(filter).toArray();
         }
 
         res.send(users);
@@ -140,7 +179,7 @@ async function run() {
     });
 
     // get all teacher request
-    app.get('/all-request', async (req, res) => {
+    app.get('/all-request', verifyFirebaseToken, async (req, res) => {
       const result = await teacherRequestCollection.find().toArray();
       res.send(result);
     });
