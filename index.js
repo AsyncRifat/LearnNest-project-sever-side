@@ -60,7 +60,7 @@ async function run() {
       }
       try {
         const decoded = await admin.auth().verifyIdToken(token);
-        console.log('yes decoded token', decoded);
+        // console.log('yes decoded token', decoded);
 
         req.decoded = decoded;
 
@@ -347,6 +347,20 @@ async function run() {
         }
       }
     );
+
+    // TODO: universal --> #4
+    // get all approve class
+    app.get('/approved-classes', async (req, res) => {
+      try {
+        const approvedClasses = await classCollection
+          .find({ status: 'approved' })
+          .toArray();
+        res.send(approvedClasses);
+      } catch (error) {
+        console.error('Error fetching approved classes:', error);
+        res.status(500).send({ message: 'Failed to fetch approved classes' });
+      }
+    });
 
     // get user's role
     app.get('/user/role/:email', verifyFirebaseToken, async (req, res) => {
