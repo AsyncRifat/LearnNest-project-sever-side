@@ -44,6 +44,7 @@ async function run() {
     const usersCollection = database.collection('users');
     const teacherRequestCollection = database.collection('teachOnLearnNest');
     const classCollection = database.collection('all-class');
+    const assignmentCollection = database.collection('assignment-question');
 
     // TODO: verify section ---> #1
     // done: firebase JWT
@@ -342,6 +343,21 @@ async function run() {
         }
       }
     );
+
+    // create assignment
+    app.post('/add-assignment', async (req, res) => {
+      const assignmentData = req.body;
+      assignmentData.create_at = new Date().toISOString();
+      console.log(assignmentData);
+      try {
+        await assignmentCollection.insertOne(assignmentData);
+        return res
+          .status(200)
+          .send({ message: 'Assignment saved in db', inserted: false });
+      } catch (error) {
+        res.status(500).json({ error: error.message });
+      }
+    });
 
     // TODO: universal --> #4
     // get a single plant from database
