@@ -345,19 +345,48 @@ async function run() {
     );
 
     // create assignment
-    app.post('/add-assignment', async (req, res) => {
-      const assignmentData = req.body;
-      assignmentData.create_at = new Date().toISOString();
-      console.log(assignmentData);
-      try {
-        await assignmentCollection.insertOne(assignmentData);
-        return res
-          .status(200)
-          .send({ message: 'Assignment saved in db', inserted: false });
-      } catch (error) {
-        res.status(500).json({ error: error.message });
+    app.post(
+      '/add-assignment',
+      verifyFirebaseToken,
+      verifyTeacher,
+      async (req, res) => {
+        const assignmentData = req.body;
+        assignmentData.create_at = new Date().toISOString();
+
+        try {
+          await assignmentCollection.insertOne(assignmentData);
+          return res
+            .status(200)
+            .send({ message: 'Assignment saved in db', inserted: false });
+        } catch (error) {
+          res.status(500).json({ error: error.message });
+        }
       }
-    });
+    );
+
+    //class delete
+    app.delete(
+      '/my-class-delete/:id',
+      verifyFirebaseToken,
+      verifyTeacher,
+      async (req, res) => {
+        const { id } = req.params;
+        console.log(id);
+        try {
+          const result = await classCollection.deleteOne({
+            _id: new ObjectId(id),
+          });
+          if (result.deletedCount === 1) {
+            res.status(200).send({ message: 'Class deleted successfully' });
+          } else {
+            res.status(404).send({ message: 'Class not found' });
+          }
+        } catch (error) {
+          console.error('Delete Error:', error);
+          res.status(500).send({ message: 'Internal Server Error', error });
+        }
+      }
+    );
 
     // TODO: universal --> #4
     // get a single plant from database
