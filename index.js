@@ -43,7 +43,9 @@ async function run() {
     const database = client.db('LearnNest');
     const usersCollection = database.collection('users');
     const teacherRequestCollection = database.collection('teachOnLearnNest');
+    const classCollection = database.collection('all-class');
 
+    // TODO: verify section ---> #1
     // done: firebase JWT
     const verifyFirebaseToken = async (req, res, next) => {
       const authHeader = req.headers.authorization;
@@ -69,33 +71,61 @@ async function run() {
       }
     };
 
-    // user search (makeAdmin client)
-    app.get('/users/search', verifyFirebaseToken, async (req, res) => {
-      const emailQuery = req.query.email;
-
-      const filter = {
-        email: { $ne: req?.decoded?.email },
-      };
-
-      const regex = new RegExp(emailQuery, 'i'); //case-insensitive partial match
-
-      try {
-        let users;
-        if (emailQuery) {
-          users = await usersCollection
-            .find({ email: { $regex: regex } })
-            .limit(10)
-            .toArray();
-        } else {
-          users = await usersCollection.find(filter).toArray();
-        }
-
-        res.send(users);
-      } catch (error) {
-        console.error('Error searching users', error);
-        res.status(500).send({ message: 'Error searching users' });
+    // custom middleware for Admin verify
+    const verifyAdmin = async (req, res, next) => {
+      const email = req.decoded.email;
+      const query = { email };
+      const user = await usersCollection.findOne(query);
+      if (!user || user.role !== 'admin') {
+        return res.status(403).send({ message: 'Forbidden Access' });
       }
-    });
+      next();
+    };
+
+    // custom middleware for Admin verify
+    const verifyTeacher = async (req, res, next) => {
+      const email = req.decoded.email;
+      const query = { email };
+      const user = await usersCollection.findOne(query);
+      if (!user || user.role !== 'teacher') {
+        return res.status(403).send({ message: 'Forbidden Access' });
+      }
+      next();
+    };
+
+    // TODO: admin section ---> #2
+    // user search (makeAdmin client)
+    app.get(
+      '/users/search',
+      verifyFirebaseToken,
+      verifyAdmin,
+      async (req, res) => {
+        const emailQuery = req.query.email;
+
+        const filter = {
+          email: { $ne: req?.decoded?.email },
+        };
+
+        const regex = new RegExp(emailQuery, 'i'); //case-insensitive partial match
+
+        try {
+          let users;
+          if (emailQuery) {
+            users = await usersCollection
+              .find({ email: { $regex: regex } })
+              .limit(10)
+              .toArray();
+          } else {
+            users = await usersCollection.find(filter).toArray();
+          }
+
+          res.send(users);
+        } catch (error) {
+          console.error('Error searching users', error);
+          res.status(500).send({ message: 'Error searching users' });
+        }
+      }
+    );
 
     // save user data in db and update last login time
     app.post('/user', async (req, res) => {
@@ -128,88 +158,177 @@ async function run() {
     });
 
     // make admin
-    app.patch('/make-admin/:id', async (req, res) => {
-      const id = req.params.id;
-      const { role } = req.body;
-      console.log(id, role);
+    app.patch(
+      '/make-admin/:id',
+      verifyFirebaseToken,
+      verifyAdmin,
+      async (req, res) => {
+        const id = req.params.id;
+        const { role } = req.body;
+        console.log(id, role);
 
-      try {
-        const result = await usersCollection.updateOne(
-          { _id: new ObjectId(id) },
-          {
-            $set: {
-              role: role,
-              status: 'verified',
-            },
-          }
-        );
-        res.send(result);
-      } catch (error) {
-        console.error(error);
-        res.status(500).send({ message: 'Failed to update' });
+        try {
+          const result = await usersCollection.updateOne(
+            { _id: new ObjectId(id) },
+            {
+              $set: {
+                role: role,
+                status: 'verified',
+              },
+            }
+          );
+          res.send(result);
+        } catch (error) {
+          console.error(error);
+          res.status(500).send({ message: 'Failed to update' });
+        }
       }
-    });
-
-    // save teacher request data in db
-    app.post('/teacher-request', async (req, res) => {
-      const teachOnData = req.body;
-      teachOnData.status = 'pending';
-      teachOnData.create_at = new Date().toISOString();
-      teachOnData.last_request_at = new Date().toISOString();
-
-      const email = teachOnData?.email;
-      const alreadyRequest = await teacherRequestCollection.findOne({ email });
-      if (!!alreadyRequest) {
-        await teacherRequestCollection.updateOne(
-          { email },
-          {
-            $set: {
-              status: 'pending',
-              last_request_at: new Date().toISOString(),
-            },
-          }
-        );
-        return res
-          .status(200)
-          .send({ message: 'User already exists', inserted: false });
-      }
-
-      const result = await teacherRequestCollection.insertOne(teachOnData);
-      res.send(result);
-    });
+    );
 
     // get all teacher request
-    app.get('/all-request', verifyFirebaseToken, async (req, res) => {
-      const result = await teacherRequestCollection.find().toArray();
+    app.get(
+      '/all-request',
+      verifyFirebaseToken,
+      verifyAdmin,
+      async (req, res) => {
+        const result = await teacherRequestCollection.find().toArray();
+        res.send(result);
+      }
+    );
+
+    // teacher request status update
+    app.patch(
+      '/teacher-request-status/:id',
+      verifyFirebaseToken,
+      verifyAdmin,
+      async (req, res) => {
+        const id = req.params.id;
+        const { status, role, email } = req.body;
+
+        try {
+          await teacherRequestCollection.updateOne(
+            { _id: new ObjectId(id) },
+            {
+              $set: { status: status },
+            }
+          );
+
+          await usersCollection.updateOne(
+            { email },
+            {
+              $set: { role: role },
+            }
+          );
+
+          res.send({ message: 'updated' });
+        } catch (error) {
+          console.error(error);
+          res.status(500).send({ message: 'Failed to update' });
+        }
+      }
+    );
+
+    // control class
+    app.get(
+      '/admin-add-class',
+      verifyFirebaseToken,
+      verifyAdmin,
+      async (req, res) => {
+        const result = await classCollection.find().toArray();
+        res.send(result);
+      }
+    );
+
+    // class status control
+    app.patch(
+      '/class-request-status/:id',
+      verifyFirebaseToken,
+      verifyAdmin,
+      async (req, res) => {
+        const id = req.params.id;
+        const { status } = req.body;
+
+        try {
+          await classCollection.updateOne(
+            { _id: new ObjectId(id) },
+            {
+              $set: { status: status },
+            }
+          );
+          res.send({ message: 'updates class request' });
+        } catch (error) {
+          console.error(error);
+          res.status(500).send({ message: 'Failed to update' });
+        }
+      }
+    );
+
+    // TODO: teacher section ---> #3
+    // save teacher request data in db
+    app.post(
+      '/teacher-request',
+      verifyFirebaseToken,
+      verifyTeacher,
+      async (req, res) => {
+        const teachOnData = req.body;
+        teachOnData.status = 'pending';
+        teachOnData.create_at = new Date().toISOString();
+        teachOnData.last_request_at = new Date().toISOString();
+
+        const email = teachOnData?.email;
+        const alreadyRequest = await teacherRequestCollection.findOne({
+          email,
+        });
+        if (!!alreadyRequest) {
+          await teacherRequestCollection.updateOne(
+            { email },
+            {
+              $set: {
+                status: 'pending',
+                last_request_at: new Date().toISOString(),
+              },
+            }
+          );
+          return res
+            .status(200)
+            .send({ message: 'Already exists', inserted: false });
+        }
+
+        const result = await teacherRequestCollection.insertOne(teachOnData);
+        res.send(result);
+      }
+    );
+
+    // add classes data save in database
+    app.post(
+      '/add-class',
+      verifyFirebaseToken,
+      verifyTeacher,
+      async (req, res) => {
+        const addClassData = req.body;
+        console.log(addClassData);
+        try {
+          await classCollection.insertOne(addClassData);
+          return res
+            .status(200)
+            .send({ message: 'Add class saved in db', inserted: false });
+        } catch (error) {
+          console.log(error);
+          res.status(500).json({ error: error.message });
+        }
+      }
+    );
+
+    // get user's role
+    app.get('/user/role/:email', verifyFirebaseToken, async (req, res) => {
+      const email = req.params.email;
+      if (!email) {
+        return res.status(400).send({ message: 'Email is required' });
+      }
+      const result = await usersCollection.findOne({ email });
       res.send(result);
     });
 
-    // teacher request status update
-    app.patch('/teacher-request-status/:id', async (req, res) => {
-      const id = req.params.id;
-      const { status, role, email } = req.body;
-
-      try {
-        await teacherRequestCollection.updateOne(
-          { _id: new ObjectId(id) },
-          {
-            $set: { status: status },
-          }
-        );
-
-        await usersCollection.updateOne(
-          { email },
-          {
-            $set: { role: role },
-          }
-        );
-
-        res.send({ message: 'Rider assigned' });
-      } catch (error) {
-        console.error(error);
-        res.status(500).send({ message: 'Failed to update' });
-      }
-    });
     // Send a ping to confirm a successful connection
     await client.db('admin').command({ ping: 1 });
     console.log(
