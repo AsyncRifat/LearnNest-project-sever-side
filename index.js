@@ -265,39 +265,34 @@ async function run() {
 
     // TODO: teacher section ---> #3
     // save teacher request data in db
-    app.post(
-      '/teacher-request',
-      verifyFirebaseToken,
-      verifyTeacher,
-      async (req, res) => {
-        const teachOnData = req.body;
-        teachOnData.status = 'pending';
-        teachOnData.create_at = new Date().toISOString();
-        teachOnData.last_request_at = new Date().toISOString();
+    app.post('/teacher-request', verifyFirebaseToken, async (req, res) => {
+      const teachOnData = req.body;
+      teachOnData.status = 'pending';
+      teachOnData.create_at = new Date().toISOString();
+      teachOnData.last_request_at = new Date().toISOString();
 
-        const email = teachOnData?.email;
-        const alreadyRequest = await teacherRequestCollection.findOne({
-          email,
-        });
-        if (!!alreadyRequest) {
-          await teacherRequestCollection.updateOne(
-            { email },
-            {
-              $set: {
-                status: 'pending',
-                last_request_at: new Date().toISOString(),
-              },
-            }
-          );
-          return res
-            .status(200)
-            .send({ message: 'Already exists', inserted: false });
-        }
-
-        const result = await teacherRequestCollection.insertOne(teachOnData);
-        res.send(result);
+      const email = teachOnData?.email;
+      const alreadyRequest = await teacherRequestCollection.findOne({
+        email,
+      });
+      if (!!alreadyRequest) {
+        await teacherRequestCollection.updateOne(
+          { email },
+          {
+            $set: {
+              status: 'pending',
+              last_request_at: new Date().toISOString(),
+            },
+          }
+        );
+        return res
+          .status(200)
+          .send({ message: 'Already exists', inserted: false });
       }
-    );
+
+      const result = await teacherRequestCollection.insertOne(teachOnData);
+      res.send(result);
+    });
 
     // get all class
     app.get(
@@ -349,17 +344,14 @@ async function run() {
     );
 
     // TODO: universal --> #4
-    // get all approve class
-    app.get('/approved-classes', async (req, res) => {
-      try {
-        const approvedClasses = await classCollection
-          .find({ status: 'approved' })
-          .toArray();
-        res.send(approvedClasses);
-      } catch (error) {
-        console.error('Error fetching approved classes:', error);
-        res.status(500).send({ message: 'Failed to fetch approved classes' });
-      }
+    // get a single plant from database
+    app.get('/approved-class-details/:id', async (req, res) => {
+      const id = req.params.id;
+
+      const result = await classCollection.findOne({
+        _id: new ObjectId(id),
+      });
+      res.send(result);
     });
 
     // get user's role
@@ -370,6 +362,31 @@ async function run() {
       }
       const result = await usersCollection.findOne({ email });
       res.send(result);
+    });
+
+    // done: pagination
+    app.get('/approved-classes-pagination', async (req, res) => {
+      const pageNo = parseInt(req.query.page);
+      const limit = parseInt(req.query.limit) || 6;
+      const skip = pageNo * limit;
+      try {
+        const query = { status: 'approved' };
+        const total = await classCollection.countDocuments(query); //for filter
+        const result = await classCollection
+          .find(query)
+          .skip(skip)
+          .limit(limit)
+          .toArray();
+
+        res.send({
+          total,
+          pageNo,
+          totalPages: Math.ceil(total / limit),
+          data: result,
+        });
+      } catch (error) {
+        res.status(500).send({ message: 'Server Error', error });
+      }
     });
 
     // Send a ping to confirm a successful connection
