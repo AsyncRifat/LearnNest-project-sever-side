@@ -299,6 +299,7 @@ async function run() {
     app.get(
       '/get-all-classes/:email',
       verifyFirebaseToken,
+      verifyTeacher,
       async (req, res) => {
         const email = req.params.email;
 
@@ -343,6 +344,40 @@ async function run() {
         }
       }
     );
+
+    // get data by id
+    app.get('/update-data-find/:id', async (req, res) => {
+      const { id } = req.params;
+      try {
+        const result = await classCollection.findOne({ _id: new ObjectId(id) });
+        res.status(200).json(result);
+      } catch (error) {
+        console.error('Error fetching classes:', error);
+        res
+          .status(500)
+          .json({ message: 'Internal Server Error', error: error.message });
+      }
+    });
+
+    // update class
+    app.put('/update-class/:id', async (req, res) => {
+      const { id } = req.params;
+      const updatedData = req.body;
+      try {
+        const result = await classCollection.updateOne(
+          { _id: new ObjectId(id) },
+          {
+            $set: {
+              ...updatedData,
+            },
+          }
+        );
+
+        res.send(result);
+      } catch (err) {
+        res.status(500).send({ message: 'Update failed', error: err });
+      }
+    });
 
     // create assignment
     app.post(
