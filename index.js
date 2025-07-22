@@ -5,6 +5,7 @@ const cors = require('cors');
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 
 const admin = require('firebase-admin');
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 const port = process.env.PORT || 3000;
 
@@ -45,6 +46,7 @@ async function run() {
     const teacherRequestCollection = database.collection('teachOnLearnNest');
     const classCollection = database.collection('all-class');
     const assignmentCollection = database.collection('assignment-question');
+    const enrollCollection = database.collection('enrolled-classes');
 
     // TODO: verify section ---> #1
     // done: firebase JWT
@@ -359,7 +361,7 @@ async function run() {
       }
     });
 
-    // update class
+    // update class all fields
     app.put('/update-class/:id', async (req, res) => {
       const { id } = req.params;
       const updatedData = req.body;
@@ -466,6 +468,73 @@ async function run() {
         });
       } catch (error) {
         res.status(500).send({ message: 'Server Error', error });
+      }
+    });
+
+    // TODO: payment
+    //  ##payment## -- create payment intent for order (eta more than secure - more secure)
+    app.post('/create-payment-intent', async (req, res) => {
+      const { courseId } = req.body;
+
+      const classData = await classCollection.findOne({
+        _id: new ObjectId(courseId),
+      });
+      if (!classData) {
+        return res
+          .status(404)
+          .send({ message: 'Not found any classData by this class ID' });
+      }
+
+      const coursePriceCents = classData?.price * 100;
+      // console.log(coursePriceCents);
+
+      // stripe....
+      try {
+        const paymentIntent = await stripe.paymentIntents.create({
+          amount: coursePriceCents,
+          currency: 'usd',
+          automatic_payment_methods: {
+            enabled: true,
+          },
+        });
+        // console.log(paymentIntent);
+
+        res.send({ clientSecret: paymentIntent.client_secret });
+      } catch (error) {
+        res.status(500).json({ error: error.message });
+      }
+    });
+
+    // saved enrolled data
+    app.post('/enroll-info', async (req, res) => {
+      try {
+        const courseData = req.body;
+        courseData.create_at = new Date().toISOString();
+        // console.log(courseData);
+
+        const result = await enrollCollection.insertOne(courseData);
+        res.status(201).send(result);
+      } catch (error) {
+        res.status(500).send({ message: 'Not inserted data in database' });
+      }
+    });
+
+    // update enrolled time
+    app.patch('/enrolled-update/:id', async (req, res) => {
+      const { id } = req.params;
+      // console.log(id);
+
+      try {
+        const filter = { _id: new ObjectId(id) };
+
+        const updateDoc = {
+          $inc: { enrolled: 1 },
+        };
+
+        const result = await classCollection.updateOne(filter, updateDoc);
+        res.send({ message: 'Enrolled count updated', result });
+      } catch (error) {
+        res.status(500).send({ success: false, message: 'Server error' });
       }
     });
 
