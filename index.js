@@ -47,6 +47,7 @@ async function run() {
     const classCollection = database.collection('all-class');
     const assignmentCollection = database.collection('assignment-question');
     const enrollCollection = database.collection('enrolled-classes');
+    const reportCollection = database.collection('ter-report');
 
     // TODO: verify section ---> #1
     // done: firebase JWT
@@ -542,7 +543,7 @@ async function run() {
     });
 
     // TODO: My enroll class -->
-    app.get('/my-all-classes/:email', async (req, res) => {
+    app.get('/my-all-classes/:email', verifyFirebaseToken, async (req, res) => {
       const email = req.params.email;
 
       try {
@@ -570,7 +571,7 @@ async function run() {
     });
 
     // assignment get
-    app.get('/assignment-get/:id', async (req, res) => {
+    app.get('/assignment-get/:id', verifyFirebaseToken, async (req, res) => {
       const { id } = req.params;
       console.log(id);
       try {
@@ -586,6 +587,58 @@ async function run() {
         res.status(200).json(assignmentData);
       } catch (error) {
         console.error('Error fetching classes:', error);
+        res
+          .status(500)
+          .json({ message: 'Internal Server Error', error: error.message });
+      }
+    });
+
+    // TODO: for assignment
+    app.get('/get-class-for-assignment/:id', async (req, res) => {
+      const { id } = req.params;
+
+      try {
+        const result = await classCollection.findOne({ _id: new ObjectId(id) });
+        res.json(result);
+      } catch (error) {
+        console.error('Error fetching classes:', error);
+        res
+          .status(500)
+          .json({ message: 'Internal Server Error', error: error.message });
+      }
+    });
+
+    // TODO: TER section
+    // assignment post
+    app.post('/ter-review', async (req, res) => {
+      const postData = req.body;
+      try {
+        postData.create_at = new Date().toISOString();
+        // console.log(courseData);
+        const result = await reportCollection.insertOne(postData);
+        res.status(201).send(result);
+      } catch (error) {
+        res.status(500).send({ message: 'Not inserted data in database' });
+      }
+    });
+
+    // get ter report by teacher email
+    app.get('/get-ter-report/:email', async (req, res) => {
+      const email = req.params.email;
+      console.log('Requested TER for:', email);
+      try {
+        if (!email) {
+          return res.status(400).send({ message: 'Email is required' });
+        }
+
+        const result = await reportCollection
+          .find({ teacherMail: email })
+          .sort({ createdAt: -1 })
+          .toArray();
+
+        res.status(200).json(result);
+      } catch (error) {
+        console.error('Error fetching TER reports:', error);
         res
           .status(500)
           .json({ message: 'Internal Server Error', error: error.message });
