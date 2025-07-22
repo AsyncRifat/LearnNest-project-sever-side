@@ -471,42 +471,45 @@ async function run() {
       }
     });
 
-    // TODO: payment
-    //  ##payment## -- create payment intent for order (eta more than secure - more secure)
-    app.post('/create-payment-intent', async (req, res) => {
-      const { courseId } = req.body;
+    // TODO: payment --> #5
+    app.post(
+      '/create-payment-intent',
+      verifyFirebaseToken,
+      async (req, res) => {
+        const { courseId } = req.body;
 
-      const classData = await classCollection.findOne({
-        _id: new ObjectId(courseId),
-      });
-      if (!classData) {
-        return res
-          .status(404)
-          .send({ message: 'Not found any classData by this class ID' });
-      }
-
-      const coursePriceCents = classData?.price * 100;
-      // console.log(coursePriceCents);
-
-      // stripe....
-      try {
-        const paymentIntent = await stripe.paymentIntents.create({
-          amount: coursePriceCents,
-          currency: 'usd',
-          automatic_payment_methods: {
-            enabled: true,
-          },
+        const classData = await classCollection.findOne({
+          _id: new ObjectId(courseId),
         });
-        // console.log(paymentIntent);
+        if (!classData) {
+          return res
+            .status(404)
+            .send({ message: 'Not found any classData by this class ID' });
+        }
 
-        res.send({ clientSecret: paymentIntent.client_secret });
-      } catch (error) {
-        res.status(500).json({ error: error.message });
+        const coursePriceCents = classData?.price * 100;
+        // console.log(coursePriceCents);
+
+        // stripe....
+        try {
+          const paymentIntent = await stripe.paymentIntents.create({
+            amount: coursePriceCents,
+            currency: 'usd',
+            automatic_payment_methods: {
+              enabled: true,
+            },
+          });
+          // console.log(paymentIntent);
+
+          res.send({ clientSecret: paymentIntent.client_secret });
+        } catch (error) {
+          res.status(500).json({ error: error.message });
+        }
       }
-    });
+    );
 
     // saved enrolled data
-    app.post('/enroll-info', async (req, res) => {
+    app.post('/enroll-info', verifyFirebaseToken, async (req, res) => {
       try {
         const courseData = req.body;
         courseData.create_at = new Date().toISOString();
@@ -520,7 +523,7 @@ async function run() {
     });
 
     // update enrolled time
-    app.patch('/enrolled-update/:id', async (req, res) => {
+    app.patch('/enrolled-update/:id', verifyFirebaseToken, async (req, res) => {
       const { id } = req.params;
       // console.log(id);
 
@@ -535,6 +538,57 @@ async function run() {
         res.send({ message: 'Enrolled count updated', result });
       } catch (error) {
         res.status(500).send({ success: false, message: 'Server error' });
+      }
+    });
+
+    // TODO: My enroll class -->
+    app.get('/my-all-classes/:email', async (req, res) => {
+      const email = req.params.email;
+
+      try {
+        if (!email) {
+          return res.status(400).send({ message: 'Email is required' });
+        }
+
+        const enrollments = await enrollCollection
+          .find({ studentEmail: email })
+          .sort({ create_at: -1 }) // descending order
+          .toArray();
+        if (enrollments.length === 0) {
+          return res
+            .status(404)
+            .json({ message: 'No classes found for this email' });
+        }
+
+        res.status(200).json(enrollments);
+      } catch (error) {
+        console.error('Error fetching classes:', error);
+        res
+          .status(500)
+          .json({ message: 'Internal Server Error', error: error.message });
+      }
+    });
+
+    // assignment get
+    app.get('/assignment-get/:id', async (req, res) => {
+      const { id } = req.params;
+      console.log(id);
+      try {
+        if (!id) {
+          return res.status(400).send({ message: 'Email is required' });
+        }
+
+        const assignmentData = await assignmentCollection
+          .find({ classId: id })
+          .sort({ create_at: -1 }) // descending order
+          .toArray();
+
+        res.status(200).json(assignmentData);
+      } catch (error) {
+        console.error('Error fetching classes:', error);
+        res
+          .status(500)
+          .json({ message: 'Internal Server Error', error: error.message });
       }
     });
 
