@@ -267,6 +267,22 @@ async function run() {
       }
     );
 
+    // TODO: HOME SECTION 6 DATA
+    app.get('/top-enrolled-classes', async (req, res) => {
+      try {
+        const topClasses = await classCollection
+          .find({ enrolled: { $gt: 0 } })
+          .sort({ enrolled: -1 })
+          .limit(6)
+          .toArray();
+
+        res.status(200).json(topClasses);
+      } catch (error) {
+        console.error('Error fetching top classes:', error);
+        res.status(500).json({ message: 'Server error', error: error.message });
+      }
+    });
+
     // TODO: teacher section ---> #3
     // save teacher request data in db
     app.post('/teacher-request', verifyFirebaseToken, async (req, res) => {
@@ -351,21 +367,26 @@ async function run() {
     );
 
     //assignment count
-    app.get('/all-assignment-count/:id', async (req, res) => {
-      const { id } = req.params;
-      // console.log(id);
-      try {
-        const query = { classId: id };
-        const total = await assignmentCollection.countDocuments(query);
-        // console.log(total);
-        res.send(total);
-      } catch (error) {
-        console.error('Error fetching classes:', error);
-        res
-          .status(500)
-          .json({ message: 'Internal Server Error', error: error.message });
+    app.get(
+      '/all-assignment-count/:id',
+      verifyFirebaseToken,
+      verifyTeacher,
+      async (req, res) => {
+        const { id } = req.params;
+        // console.log(id);
+        try {
+          const query = { classId: id };
+          const total = await assignmentCollection.countDocuments(query);
+          // console.log(total);
+          res.send(total);
+        } catch (error) {
+          console.error('Error fetching classes:', error);
+          res
+            .status(500)
+            .json({ message: 'Internal Server Error', error: error.message });
+        }
       }
-    });
+    );
 
     // add classes data save in database
     app.post(
