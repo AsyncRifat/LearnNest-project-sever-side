@@ -49,7 +49,7 @@ async function run() {
     const enrollCollection = database.collection('enrolled-classes');
     const reportCollection = database.collection('ter-report');
 
-    // TODO: verify section ---> #1
+    // done: verify section ---> #1
     // done: firebase JWT
     const verifyFirebaseToken = async (req, res, next) => {
       const authHeader = req.headers.authorization;
@@ -97,7 +97,7 @@ async function run() {
       next();
     };
 
-    // TODO: admin section ---> #2
+    // done: admin section ---> #2
     // user search (makeAdmin client)
     app.get(
       '/users/search',
@@ -169,7 +169,7 @@ async function run() {
       async (req, res) => {
         const id = req.params.id;
         const { role } = req.body;
-        console.log(id, role);
+        // console.log(id, role);
 
         try {
           const result = await usersCollection.updateOne(
@@ -267,7 +267,7 @@ async function run() {
       }
     );
 
-    // TODO: HOME SECTION 6 DATA
+    // done: HOME SECTION 6 DATA  ---> #3
     app.get('/top-enrolled-classes', async (req, res) => {
       try {
         const topClasses = await classCollection
@@ -283,7 +283,7 @@ async function run() {
       }
     });
 
-    // TODO: teacher section ---> #3
+    // done: teacher section ---> #4
     // save teacher request data in db
     app.post('/teacher-request', verifyFirebaseToken, async (req, res) => {
       const teachOnData = req.body;
@@ -314,7 +314,7 @@ async function run() {
       res.send(result);
     });
 
-    // get all class --------------------------
+    // get all class
     app.get(
       '/get-all-classes/:email',
       verifyFirebaseToken,
@@ -344,7 +344,7 @@ async function run() {
       }
     );
 
-    // all enroll for Class Progress ------------------------------------------
+    // all enroll for Class Progress
     app.get(
       '/all-enrolled/:id',
       verifyFirebaseToken,
@@ -395,7 +395,7 @@ async function run() {
       verifyTeacher,
       async (req, res) => {
         const addClassData = req.body;
-        console.log(addClassData);
+        // console.log(addClassData);
         try {
           await classCollection.insertOne(addClassData);
           return res
@@ -469,7 +469,7 @@ async function run() {
       verifyTeacher,
       async (req, res) => {
         const { id } = req.params;
-        console.log(id);
+        // console.log(id);
         try {
           const result = await classCollection.deleteOne({
             _id: new ObjectId(id),
@@ -486,7 +486,7 @@ async function run() {
       }
     );
 
-    // TODO: universal --> #4
+    // done: universal --> #5
     // get a single plant from database
     app.get('/approved-class-details/:id', async (req, res) => {
       const id = req.params.id;
@@ -532,7 +532,7 @@ async function run() {
       }
     });
 
-    // TODO: payment --> #5
+    // done: payment --> #6
     app.post(
       '/create-payment-intent',
       verifyFirebaseToken,
@@ -602,7 +602,7 @@ async function run() {
       }
     });
 
-    // TODO: My enroll class -->
+    // done: My enroll class -->7
     app.get('/my-all-classes/:email', verifyFirebaseToken, async (req, res) => {
       const email = req.params.email;
 
@@ -633,7 +633,7 @@ async function run() {
     // assignment get
     app.get('/assignment-get/:id', verifyFirebaseToken, async (req, res) => {
       const { id } = req.params;
-      console.log(id);
+      // console.log(id);
       try {
         if (!id) {
           return res.status(400).send({ message: 'Email is required' });
@@ -653,7 +653,7 @@ async function run() {
       }
     });
 
-    // TODO: for assignment
+    // done: for assignment  ---> #8
     app.get(
       '/get-class-for-assignment/:id',
       verifyFirebaseToken,
@@ -674,7 +674,7 @@ async function run() {
       }
     );
 
-    // TODO: TER section
+    // done: TER section  ---> #9
     // assignment post
     app.post('/ter-review', async (req, res) => {
       const postData = req.body;
