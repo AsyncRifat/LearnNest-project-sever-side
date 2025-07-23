@@ -22,10 +22,11 @@ admin.initializeApp({
 
 // middleware
 const corsOptions = {
-  origin: ['https://learnnest-bc283.web.app'],
+  origin: ['https://learnnest-bc283.web.app', 'http://localhost:5173'],
   credentials: true,
-  optionSuccessStatus: 200,
+  optionsSuccessStatus: 200,
 };
+
 app.use(cors(corsOptions));
 app.use(express.json());
 
