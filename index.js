@@ -287,11 +287,21 @@ async function run() {
     app.get('/home-countUp', async (req, res) => {
       const totalUser = await usersCollection.estimatedDocumentCount();
       const totalClass = await classCollection.estimatedDocumentCount();
+      const totalEnrolledClass =
+        await enrollCollection.estimatedDocumentCount();
+      const totalAssignment =
+        await assignmentCollection.estimatedDocumentCount();
       const totalTeacher = await teacherRequestCollection.countDocuments({
         status: 'approved',
       });
 
-      res.send({ totalClass, totalTeacher, totalUser });
+      res.send({
+        totalClass,
+        totalTeacher,
+        totalUser,
+        totalEnrolledClass,
+        totalAssignment,
+      });
     });
 
     // done: teacher section ---> #4
