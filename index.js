@@ -284,6 +284,16 @@ async function run() {
       }
     });
 
+    app.get('/home-countUp', async (req, res) => {
+      const totalUser = await usersCollection.estimatedDocumentCount();
+      const totalClass = await classCollection.estimatedDocumentCount();
+      const totalTeacher = await teacherRequestCollection.countDocuments({
+        status: 'approved',
+      });
+
+      res.send({ totalClass, totalTeacher, totalUser });
+    });
+
     // done: teacher section ---> #4
     // save teacher request data in db
     app.post('/teacher-request', verifyFirebaseToken, async (req, res) => {
